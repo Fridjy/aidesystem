@@ -1,0 +1,61 @@
+version: "3"
+services:
+  postgres14:
+    image: postgres:14
+    platform: linux/arm64/v8
+    volumes:
+      - postgres14:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: odk
+      POSTGRES_PASSWORD: odk
+      POSTGRES_DB: odk
+    restart: always
+
+  mail:
+    image: "ixdotai/smtp:v0.5.2"
+    volumes:
+      - ./files/mail/rsa.private:/etc/exim4/dkim.key.temp:ro
+    environment:
+      MAILNAME: "${DOMAIN}"
+      DKIM_KEY_PATH: "/etc/exim4/dkim.key.temp"
+    restart: always
+
+  secrets:
+    image: alpine
+    volumes:
+      - secrets:/etc/secrets
+    command: >
+      /bin/sh -c "echo 'Génération des secrets...' && 
+      touch /etc/secrets/api_key && 
+      echo 'clé-api-générée' > /etc/secrets/api_key"
+    restart: "no"
+
+  service:
+    build:
+      context: .
+      dockerfile: service.dockerfile
+    depends_on:
+      - secrets
+      - postgres14
+      - mail
+    volumes:
+      - secrets:/etc/secrets
+      - /data/transfer:/data/transfer
+    # Configuration d'environnement...
+    restart: always
+
+  enketo:
+    build:
+      context: . # Assurez-vous que cela pointe vers le répertoire contenant votre enketo.dockerfile
+      dockerfile: enketo.dockerfile
+    volumes:
+      - enketo_data:/data # Assurez-vous de mapper les volumes nécessaires
+    depends_on:
+      - postgres14 # Liste des dépendances
+    # Autres configurations nécessaires...
+
+volumes:
+  postgres14: {}
+  secrets: {}
+  transfer: {}
+  enketo_data: {}
